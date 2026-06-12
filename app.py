@@ -553,6 +553,35 @@ def _render_report(analytics: dict, session_id: str):
     m6.metric("😊 Dominant Emotion", f"{EMOTION_EMOJI.get(emotion, '❓')} {emotion.title()}")
 
     st.divider()
+    
+    # ── Export ───────────────────────────────────────────────────────────────
+    st.markdown("#### 📥 Export Report")
+    export_cols = st.columns(2)
+    
+    # JSON Export
+    import json
+    json_data = json.dumps(analytics, indent=2)
+    export_cols[0].download_button(
+        label="Download Full JSON Report",
+        data=json_data,
+        file_name=f"interview_report_{session_id}.json",
+        mime="application/json",
+        use_container_width=True
+    )
+    
+    # CSV Export (Timeline Data)
+    timeline = analytics.get("emotion_timeline", [])
+    if timeline:
+        df_csv = pd.DataFrame(timeline).to_csv(index=False)
+        export_cols[1].download_button(
+            label="Download Timeline CSV",
+            data=df_csv,
+            file_name=f"interview_timeline_{session_id}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    st.divider()
 
     # ── Tabs ─────────────────────────────────────────────────────────────────
     tab_timeline, tab_emotion, tab_audio, tab_video = st.tabs(
