@@ -28,7 +28,7 @@ from src.analysis.pose import (
     detect_posture_label,
     draw_pose_landmarks,
 )
-from src.analysis.audio import compute_speaking_metrics
+from src.analysis.audio import compute_speaking_metrics, compute_speech_to_text_metrics
 from src.analysis.emotion import (
     analyse_frame_emotion,
     compute_emotional_stability,
@@ -151,6 +151,9 @@ def process_video(video_path: str, output_path: str | None = None) -> dict:
     # --- Audio analytics ---
     logger.info("Computing audio metrics…")
     speaking_metrics = compute_speaking_metrics(video_path)
+    
+    logger.info("Computing transcript and text metrics…")
+    speech_metrics = compute_speech_to_text_metrics(video_path)
 
     # --- Session-level aggregation ---
     eye_avg = float(np.mean(eye_scores)) if eye_scores else 0.0
@@ -185,6 +188,7 @@ def process_video(video_path: str, output_path: str | None = None) -> dict:
         "confidence_label": confidence_label(confidence),
         "engagement_score": engagement,
         "speaking_metrics": speaking_metrics,
+        "speech_metrics": speech_metrics,
         "emotion_timeline": emotion_timeline,
         "processed_video": output_path,
     }

@@ -20,6 +20,13 @@ try:
 except ImportError:
     _MOVIEPY_AVAILABLE = False
 
+try:
+    import whisper
+    _WHISPER_AVAILABLE = True
+    _WHISPER_MODEL = None
+except ImportError:
+    _WHISPER_AVAILABLE = False
+
 
 def extract_audio_to_file(video_path: str) -> Optional[str]:
     """Extract the audio track from a video and write it to a temp WAV file.
@@ -128,3 +135,48 @@ def compute_speaking_metrics(video_path: str) -> dict:
         "voice_segments": [(round(s, 2), round(e, 2)) for s, e in segments],
         "audio_duration": round(duration, 2),
     }
+
+def get_whisper_model():
+    """Lazily load the whisper base model."""
+    global _WHISPER_MODEL
+    if _WHISPER_MODEL is None and _WHISPER_AVAILABLE:
+        # We use the 'base' model for a good speed/accuracy trade-off
+        _WHISPER_MODEL = whisper.load_model("base")
+    return _WHISPER_MODEL
+
+def compute_speech_to_text_metrics(video_path: str) -> dict:
+    """Use OpenAI Whisper to transcribe audio and compute WPM and filler words."""
+    if not _WHISPER_AVAILABLE:
+        return {"transcript": "", "filler_words": 0, "actual_wpm": None, "word_count": 0}
+        
+    model = get_whisper_model()
+    if not model:
+        return {"transcript": "", "filler_words": 0, "actual_wpm": None, "word_count": 0}
+        
+    audio_path = extract_audio_to_file(video_path)
+    if not audio_path:
+        return {"transcript": "", "filler_words": 0, "actual_wpm": None, "word_count": 0}
+        
+    try:
+        result = model.transcribe(audio_path)
+        text = result.get("text", "")
+        
+        # Calculate filler words
+        import re
+        words = re.findall(r'\b\w+\b', text.lower())
+        filler_list = {'um', 'uh', 'like', 'literally', 'basically', 'actually'}
+        filler_words = sum(1 for w in words if w in filler_list)
+        
+        import librosa
+        duration = librosa.get_duration(filename=audio_path)
+        actual_wpm = len(words) / (duration / 60.0) if duration > 0 else 0.0
+        
+        return {
+            "transcript": text.strip(),
+            "filler_words": filler_words,
+            "actual_wpm": round(actual_wpm, 1),
+            "word_count": len(words)
+        }
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
