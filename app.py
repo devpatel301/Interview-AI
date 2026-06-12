@@ -436,6 +436,50 @@ def page_analyze():
         help="Supported formats: MP4, MOV, AVI, MKV",
     )
 
+    with st.expander("🎥 Live Webcam Mode (Local Analysis)"):
+        st.markdown("Run real-time analysis using your computer's webcam. Perfect for quick posture and eye-contact checks.")
+        cam_col1, cam_col2 = st.columns(2)
+        if cam_col1.button("Start Webcam"):
+            st.session_state["webcam_active"] = True
+        if cam_col2.button("Stop Webcam"):
+            st.session_state["webcam_active"] = False
+
+        if st.session_state.get("webcam_active", False):
+            import cv2
+            from src.analysis.face import create_face_mesh, detect_landmarks, draw_face_landmarks, estimate_eye_contact
+            from src.analysis.pose import create_pose_model, detect_pose, draw_pose_landmarks, estimate_posture
+            
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                st.error("Could not open webcam.")
+            else:
+                stframe = st.empty()
+                metrics_placeholder = st.empty()
+                f_mesh = create_face_mesh()
+                p_model = create_pose_model()
+                
+                while st.session_state.get("webcam_active", False):
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                        
+                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    f_lms = detect_landmarks(f_mesh, rgb)
+                    p_lms = detect_pose(p_model, rgb)
+                    
+                    eye_score = estimate_eye_contact(f_lms, frame.shape)
+                    posture_score = estimate_posture(p_lms)
+                    
+                    draw_face_landmarks(frame, f_lms)
+                    draw_pose_landmarks(frame, p_lms)
+                    
+                    stframe.image(frame, channels="BGR")
+                    metrics_placeholder.markdown(f"**Eye Contact:** {eye_score:.2f} | **Posture:** {posture_score:.2f}")
+                
+                cap.release()
+                f_mesh.close()
+                p_model.close()
+
     if uploaded is None:
         _render_landing_info()
         return
@@ -467,7 +511,7 @@ def page_analyze():
     with open(video_path, "wb") as f:
         f.write(uploaded.getvalue())
 
-    create_session(conn, session_id, uploaded.name, video_path)
+    create_session(conn, session_id, uploaded.name, video_path, user_id=st.session_state["user_id"])
 
     st.divider()
     progress_bar = st.progress(0, text="Initialising pipeline…")
@@ -706,7 +750,7 @@ def page_history():
     )
     st.divider()
 
-    sessions = list_sessions(conn, limit=50)
+    sessions = list_sessions(conn, limit=50, user_id=st.session_state["user_id"])
     if not sessions:
         st.info("No sessions yet. Upload a video to get started.")
         return
@@ -744,10 +788,26 @@ def page_history():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Router
+# Router & Authentication
 # ─────────────────────────────────────────────────────────────────────────────
 
-if "Analyze Video" in page:
-    page_analyze()
+if "user_id" not in st.session_state:
+    st.title("Interview-AI Login")
+    st.markdown("Please log in to access your interview sessions.")
+    user_input = st.text_input("Username")
+    if st.button("Login", type="primary"):
+        if user_input.strip():
+            st.session_state["user_id"] = user_input.strip()
+            st.rerun()
+        else:
+            st.error("Please enter a valid username.")
 else:
-    page_history()
+    st.sidebar.markdown(f"**Logged in as:** `{st.session_state['user_id']}`")
+    if st.sidebar.button("Logout"):
+        del st.session_state["user_id"]
+        st.rerun()
+        
+    if "Analyze Video" in page:
+        page_analyze()
+    else:
+        page_history()

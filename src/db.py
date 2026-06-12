@@ -52,6 +52,7 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS sessions (
             id          TEXT PRIMARY KEY,
+            user_id     TEXT NOT NULL,
             created_at  TEXT NOT NULL,
             filename    TEXT,
             video_path  TEXT,
@@ -84,12 +85,12 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 
 def create_session(conn: sqlite3.Connection, session_id: str,
-                   filename: str, video_path: str) -> None:
+                   filename: str, video_path: str, user_id: str = "default_user") -> None:
     """Insert a new session record with status='processing'."""
     conn.execute(
-        "INSERT INTO sessions (id, created_at, filename, video_path, status) "
-        "VALUES (?, ?, ?, ?, 'processing')",
-        (session_id, _now(), filename, video_path),
+        "INSERT INTO sessions (id, user_id, created_at, filename, video_path, status) "
+        "VALUES (?, ?, ?, ?, ?, 'processing')",
+        (session_id, user_id, _now(), filename, video_path),
     )
     conn.commit()
 
@@ -105,15 +106,19 @@ def get_session(conn: sqlite3.Connection, session_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
-def list_sessions(conn: sqlite3.Connection, limit: int = 20) -> list[dict]:
-    rows = conn.execute(
+def list_sessions(conn: sqlite3.Connection, limit: int = 20, user_id: str = None) -> list[dict]:
+    query = (
         "SELECT s.*, r.confidence_score, r.eye_contact_avg, r.posture_avg, "
         "       r.speaking_pace, r.dominant_emotion "
         "FROM sessions s "
         "LEFT JOIN results r ON r.session_id = s.id "
-        "ORDER BY s.created_at DESC LIMIT ?",
-        (limit,),
-    ).fetchall()
+    )
+    if user_id:
+        query += "WHERE s.user_id = ? ORDER BY s.created_at DESC LIMIT ?"
+        rows = conn.execute(query, (user_id, limit)).fetchall()
+    else:
+        query += "ORDER BY s.created_at DESC LIMIT ?"
+        rows = conn.execute(query, (limit,)).fetchall()
     return [dict(r) for r in rows]
 
 
