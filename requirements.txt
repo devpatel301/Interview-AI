@@ -4,3 +4,10 @@ streamlit
 numpy
 pandas
 moviepy
+fastapi
+uvicorn[standard]
+python-multipart
+deepface
+tf-keras
+sqlalchemy
+librosa

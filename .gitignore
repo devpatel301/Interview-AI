@@ -1,1 +1,15 @@
 TODO.md
+__pycache__/
+*.pyc
+data/
+models/
+.impeccable/
+.agents/
+skills-lock.json
+artifacts/
+DESIGN.md
+PRODUCT.md
+*.db
+*.sqlite
+*.sqlite3
+.DS_Store
