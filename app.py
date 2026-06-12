@@ -622,11 +622,20 @@ def _render_audio_tab(analytics: dict):
     sm = analytics.get("speaking_metrics", {})
 
     st.markdown("#### Speaking Analytics")
+    speech = analytics.get("speech_metrics", {})
     a1, a2, a3, a4 = st.columns(4)
     a1.metric("Duration", f"{analytics.get('duration_sec', 0):.1f}s")
-    a2.metric("Speaking Pace", f"{sm.get('speaking_pace_wpm', 'N/A')} wpm")
+    
+    # Use Whisper's actual WPM if available, fallback to heuristic
+    wpm = speech.get("actual_wpm") or sm.get('speaking_pace_wpm', 'N/A')
+    a2.metric("Speaking Pace", f"{wpm} wpm")
+    
     a3.metric("Pause Ratio", f"{sm.get('pause_ratio', 0):.1%}" if sm.get('pause_ratio') is not None else "N/A")
-    a4.metric("Speaking Time", f"{sm.get('speaking_ratio', 0):.1%}" if sm.get('speaking_ratio') is not None else "N/A")
+    a4.metric("Filler Words", f"{speech.get('filler_words', 0)}")
+
+    if speech.get("transcript"):
+        st.markdown("#### Transcript")
+        st.info(speech.get("transcript"))
 
     voice_segs = sm.get("voice_segments", [])
     if voice_segs:
@@ -635,7 +644,7 @@ def _render_audio_tab(analytics: dict):
         seg_df["Duration (s)"] = (seg_df["End (s)"] - seg_df["Start (s)"]).round(2)
         st.dataframe(seg_df, use_container_width=True)
     else:
-        st.info("No voice segments detected or audio track missing.")
+        st.warning("No voice segments detected or audio track missing.")
 
 
 def _render_video_tab(analytics: dict):
