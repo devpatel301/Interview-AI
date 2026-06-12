@@ -46,9 +46,10 @@ def detect_landmarks(landmarker: FaceLandmarker, rgb_frame: np.ndarray):
 
 
 def estimate_eye_contact(face_landmarks, image_shape) -> float:
-    """Estimate eye contact score [0, 1] from FaceLandmarker landmarks.
-
-    Checks how centred the mid-eye point is relative to the nose tip.
+    """Estimate eye contact score [0, 1] using robust facial orientation.
+    
+    Computes horizontal (yaw) and vertical (pitch) centering of the nose 
+    relative to the eyes and mouth.
     """
     if face_landmarks is None:
         return 0.0
@@ -59,13 +60,25 @@ def estimate_eye_contact(face_landmarks, image_shape) -> float:
     left_eye = points[33]
     right_eye = points[263]
     nose_tip = points[1]
+    mouth_center = (points[13] + points[14]) / 2
 
+    # Horizontal centering (Yaw)
+    left_dist = np.linalg.norm(nose_tip - left_eye)
+    right_dist = np.linalg.norm(nose_tip - right_eye)
+    yaw_ratio = min(left_dist, right_dist) / max(left_dist, right_dist)
+
+    # Vertical centering (Pitch)
     eye_center = (left_eye + right_eye) / 2
-    distance = np.linalg.norm(eye_center - nose_tip)
+    upper_dist = np.linalg.norm(nose_tip - eye_center)
+    lower_dist = np.linalg.norm(mouth_center - nose_tip)
+    pitch_ratio = min(upper_dist, lower_dist) / max(upper_dist, lower_dist)
 
-    max_distance = w * 0.2
-    score = max(0.0, 1.0 - distance / max_distance)
-    return float(np.clip(score, 0.0, 1.0))
+    # Combine ratios
+    score = (yaw_ratio * 0.6) + (pitch_ratio * 0.4)
+    # Scale so that very direct facing gives 1.0
+    scaled_score = np.clip((score - 0.5) * 2.0, 0.0, 1.0)
+    
+    return float(scaled_score)
 
 
 def detect_gaze_direction(face_landmarks, image_shape) -> str:
@@ -76,23 +89,29 @@ def detect_gaze_direction(face_landmarks, image_shape) -> str:
     h, w = image_shape[:2]
     points = np.array([[lm.x * w, lm.y * h] for lm in face_landmarks])
 
-    nose_tip = points[1]
     left_eye = points[33]
     right_eye = points[263]
+    nose_tip = points[1]
+    mouth_center = (points[13] + points[14]) / 2
+
+    # Yaw indication
+    left_dist = np.linalg.norm(nose_tip - left_eye)
+    right_dist = np.linalg.norm(nose_tip - right_eye)
+    
+    # Pitch indication
     eye_center = (left_eye + right_eye) / 2
+    upper_dist = np.linalg.norm(nose_tip - eye_center)
+    lower_dist = np.linalg.norm(mouth_center - nose_tip)
 
-    dx = eye_center[0] - nose_tip[0]
-    dy = eye_center[1] - nose_tip[1]
-
-    if abs(dx) < w * 0.03 and abs(dy) < h * 0.04:
-        return "center"
-    if dx > w * 0.03:
-        return "right"
-    if dx < -w * 0.03:
+    if left_dist > right_dist * 1.3:
         return "left"
-    if dy < -h * 0.04:
+    if right_dist > left_dist * 1.3:
+        return "right"
+    if upper_dist > lower_dist * 1.3:
         return "up"
-    return "down"
+    if lower_dist > upper_dist * 1.3:
+        return "down"
+    return "center"
 
 
 def draw_face_landmarks(frame: np.ndarray, face_landmarks) -> None:

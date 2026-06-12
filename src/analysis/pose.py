@@ -64,12 +64,24 @@ def estimate_posture(pose_landmarks) -> float:
     right_shoulder = np.array([lm[RIGHT_SHOULDER].x, lm[RIGHT_SHOULDER].y])
     left_hip = np.array([lm[LEFT_HIP].x, lm[LEFT_HIP].y])
     right_hip = np.array([lm[RIGHT_HIP].x, lm[RIGHT_HIP].y])
+    left_ear = np.array([lm[PoseLandmark.LEFT_EAR].x, lm[PoseLandmark.LEFT_EAR].y])
+    right_ear = np.array([lm[PoseLandmark.RIGHT_EAR].x, lm[PoseLandmark.RIGHT_EAR].y])
 
     shoulder_center = (left_shoulder + right_shoulder) / 2
     hip_center = (left_hip + right_hip) / 2
+    ear_center = (left_ear + right_ear) / 2
+    
     vector = hip_center - shoulder_center
-    angle = np.degrees(np.arctan2(vector[0], vector[1]))
-    score = 1.0 - min(abs(angle) / 45.0, 1.0)
+    lean_angle = np.degrees(np.arctan2(vector[0], vector[1]))
+    lean_score = 1.0 - min(abs(lean_angle) / 30.0, 1.0)
+
+    torso_length = np.linalg.norm(hip_center - shoulder_center)
+    neck_length = np.linalg.norm(shoulder_center - ear_center)
+    neck_ratio = neck_length / (torso_length + 1e-6)
+    
+    slouch_score = np.clip((neck_ratio - 0.15) / 0.25, 0.0, 1.0)
+    
+    score = (lean_score * 0.6) + (slouch_score * 0.4)
     return float(np.clip(score, 0.0, 1.0))
 
 
