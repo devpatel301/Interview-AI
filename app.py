@@ -54,6 +54,11 @@ st.markdown("""
     color: var(--ink);
 }
 
+/* Hide deploy button and top header */
+.stDeployButton, [data-testid="stToolbar"], header[data-testid="stHeader"] {
+    display: none !important;
+}
+
 /* Mixed font collisions */
 html, body, [class*="css"] {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -511,7 +516,7 @@ def page_analyze():
     with open(video_path, "wb") as f:
         f.write(uploaded.getvalue())
 
-    create_session(conn, session_id, uploaded.name, video_path, user_id=st.session_state["user_id"])
+    create_session(conn, session_id, uploaded.name, video_path)
 
     st.divider()
     progress_bar = st.progress(0, text="Initialising pipeline…")
@@ -750,7 +755,7 @@ def page_history():
     )
     st.divider()
 
-    sessions = list_sessions(conn, limit=50, user_id=st.session_state["user_id"])
+    sessions = list_sessions(conn, limit=50)
     if not sessions:
         st.info("No sessions yet. Upload a video to get started.")
         return
@@ -788,26 +793,10 @@ def page_history():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Router & Authentication
+# Router
 # ─────────────────────────────────────────────────────────────────────────────
 
-if "user_id" not in st.session_state:
-    st.title("Interview-AI Login")
-    st.markdown("Please log in to access your interview sessions.")
-    user_input = st.text_input("Username")
-    if st.button("Login", type="primary"):
-        if user_input.strip():
-            st.session_state["user_id"] = user_input.strip()
-            st.rerun()
-        else:
-            st.error("Please enter a valid username.")
+if "Analyze Video" in page:
+    page_analyze()
 else:
-    st.sidebar.markdown(f"**Logged in as:** `{st.session_state['user_id']}`")
-    if st.sidebar.button("Logout"):
-        del st.session_state["user_id"]
-        st.rerun()
-        
-    if "Analyze Video" in page:
-        page_analyze()
-    else:
-        page_history()
+    page_history()
