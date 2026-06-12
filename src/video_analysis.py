@@ -168,8 +168,25 @@ def process_video(video_path: str, output_path: str | None = None) -> dict:
         speaking_metrics.get("pause_ratio"),
         speaking_metrics.get("speaking_ratio"),
     )
-    confidence = compute_confidence_score(eye_avg, posture_avg,
-                                          speaking_consistency, emotional_stability)
+
+    # Use Machine Learning model if available
+    model_path = os.path.join(os.path.dirname(__file__), "..", "models", "confidence_model.pkl")
+    if os.path.exists(model_path):
+        import pickle
+        import pandas as pd
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+        
+        # Prepare input features: ["eye_contact_avg", "posture_avg", "speaking_pace", "pause_ratio"]
+        pace = speech_metrics.get("actual_wpm") or speaking_metrics.get("speaking_pace_wpm", 130)
+        pause = speaking_metrics.get("pause_ratio", 0.2)
+        df_input = pd.DataFrame([[eye_avg, posture_avg, pace, pause]], 
+                                columns=["eye_contact_avg", "posture_avg", "speaking_pace", "pause_ratio"])
+        confidence = float(model.predict(df_input)[0])
+        logger.info(f"ML Confidence Prediction: {confidence:.3f}")
+    else:
+        confidence = compute_confidence_score(eye_avg, posture_avg,
+                                              speaking_consistency, emotional_stability)
     engagement = compute_engagement_score(eye_avg, movement_avg,
                                           speaking_metrics.get("speaking_ratio"))
     duration = frame_count / fps if fps else 0.0
